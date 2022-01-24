@@ -584,7 +584,7 @@ class _TextBoxState extends State<TextBox>
       formatters.add(LengthLimitingTextInputFormatter(widget.maxLength));
     }
 
-    final TextStyle textStyle = TextStyle(
+    final TextStyle _textStyle = widget.style ?? TextStyle(
       color: enabled ? theme.inactiveColor : theme.disabledColor,
     );
 
@@ -600,7 +600,7 @@ class _TextBoxState extends State<TextBox>
           }).resolve(context);
 
     final TextStyle placeholderStyle = widget.placeholderStyle ??
-        textStyle.copyWith(
+        _textStyle.copyWith(
           color: !enabled
               ? theme.brightness.isLight
                   ? const Color.fromRGBO(0, 0, 0, 0.3614)
@@ -645,7 +645,7 @@ class _TextBoxState extends State<TextBox>
             keyboardType: widget.keyboardType,
             textInputAction: widget.textInputAction,
             textCapitalization: widget.textCapitalization,
-            style: textStyle,
+            style: _textStyle,
             strutStyle: widget.strutStyle,
             textAlign: widget.textAlign,
             autofocus: widget.autofocus,
@@ -730,7 +730,7 @@ class _TextBoxState extends State<TextBox>
               heightFactor: 1.0,
               child: _addTextDependentAttachments(
                 paddedEditable,
-                textStyle,
+                _textStyle,
                 placeholderStyle,
               ),
             ),
