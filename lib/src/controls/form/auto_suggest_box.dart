@@ -34,10 +34,13 @@ class AutoSuggestBox<T> extends StatefulWidget {
     this.onSelected,
     this.onAdd,
     this.trailingIcon,
+    this.style,
     this.clearButtonEnabled = true,
     this.addButtonEnabled = true,
     this.placeholder,
   }) : super(key: key);
+
+  final TextStyle? style;
 
   /// The list of items to display to the user to pick
   final List<T> items;
@@ -154,6 +157,7 @@ class _AutoSuggestBoxState<T> extends State<AutoSuggestBox<T>> {
                 widget.onSelected?.call(item);
                 controller.text = item.toString();
                 widget.onChanged?.call(item.toString(), TextChangedReason.userInput);
+                _dismissOverlay();
               },
             ),
           ),
@@ -189,6 +193,9 @@ class _AutoSuggestBoxState<T> extends State<AutoSuggestBox<T>> {
         //   debugPrint('Focused!');
         // },
         placeholder: widget.placeholder,
+        style: widget.style,
+        headerStyle: widget.style,
+        placeholderStyle: widget.style,
         clipBehavior: _entry != null ? Clip.none : Clip.antiAliasWithSaveLayer,
         suffix: Row(children: [
           if (widget.trailingIcon != null) widget.trailingIcon!,
