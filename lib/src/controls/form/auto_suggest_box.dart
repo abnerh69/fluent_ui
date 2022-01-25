@@ -1,6 +1,7 @@
 import 'package:fluent_ui/fluent_ui.dart';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 enum TextChangedReason {
   /// Whether the text in an [AutoSuggestBox] was changed by user input
@@ -22,8 +23,8 @@ enum TextChangedReason {
 ///
 ///   * <https://docs.microsoft.com/en-us/windows/apps/design/controls/auto-suggest-box>
 ///   * [TextBox], which is used by this widget to enter user text input
-///   * [Overlay], which is used to show the suggestion popup
-class AutoSuggestBox extends StatefulWidget {
+///   * [Overlay], which is used to show the popup
+class AutoSuggestBox<T> extends StatefulWidget {
   /// Creates a fluent-styled auto suggest box.
   const AutoSuggestBox({
     Key? key,
@@ -31,14 +32,15 @@ class AutoSuggestBox extends StatefulWidget {
     this.controller,
     this.onChanged,
     this.onSelected,
+    this.onAdd,
     this.trailingIcon,
     this.clearButtonEnabled = true,
+    this.addButtonEnabled = true,
     this.placeholder,
-    this.placeholderStyle,
   }) : super(key: key);
 
   /// The list of items to display to the user to pick
-  final List<String> items;
+  final List<T> items;
 
   /// The controller used to have control over what to show on
   /// the [TextBox].
@@ -48,7 +50,10 @@ class AutoSuggestBox extends StatefulWidget {
   final void Function(String text, TextChangedReason reason)? onChanged;
 
   /// Called when the user selected a value.
-  final ValueChanged<String>? onSelected;
+  final ValueChanged<T>? onSelected;
+
+  /// Called when the user press add button.
+  final Function(String)? onAdd;
 
   /// A widget displayed in the end of the [TextBox]
   ///
@@ -60,37 +65,25 @@ class AutoSuggestBox extends StatefulWidget {
   /// Defauls to true
   final bool clearButtonEnabled;
 
-  /// The text shown when the text box is empty
+  /// Whether the add button is enabled
   ///
-  /// See also:
-  ///
-  ///  * [TextBox.placeholder]
+  /// Defauls to true
+  final bool addButtonEnabled;
+
+  /// The placeholder
   final String? placeholder;
 
-  /// The style of [placeholder]
-  ///
-  /// See also:
-  ///
-  ///  * [TextBox.placeholderStyle]
-  final TextStyle? placeholderStyle;
-
   @override
-  _AutoSuggestBoxState createState() => _AutoSuggestBoxState();
+  _AutoSuggestBoxState<T> createState() => _AutoSuggestBoxState<T>();
 
   @override
   void debugFillProperties(DiagnosticPropertiesBuilder properties) {
     super.debugFillProperties(properties);
-    properties.add(IterableProperty<String>('items', items));
-    properties.add(ObjectFlagProperty<ValueChanged<String>?>(
+    properties.add(IterableProperty<T>('items', items));
+    properties.add(ObjectFlagProperty<ValueChanged<T>?>(
       'onSelected',
       onSelected,
       ifNull: 'disabled',
-    ));
-    properties.add(FlagProperty(
-      'clearButtonEnabled',
-      value: clearButtonEnabled,
-      defaultValue: true,
-      ifFalse: 'clear button disabled',
     ));
   }
 
@@ -101,7 +94,7 @@ class AutoSuggestBox extends StatefulWidget {
   }
 }
 
-class _AutoSuggestBoxState<T> extends State<AutoSuggestBox> {
+class _AutoSuggestBoxState<T> extends State<AutoSuggestBox<T>> {
   final FocusNode focusNode = FocusNode();
   OverlayEntry? _entry;
   final LayerLink _layerLink = LayerLink();
@@ -134,7 +127,9 @@ class _AutoSuggestBoxState<T> extends State<AutoSuggestBox> {
     if (!hasFocus) {
       _dismissOverlay();
     } else {
-      _showOverlay();
+      if (_entry == null && !(_entry?.mounted ?? false)) {
+        _insertOverlay();
+      }
     }
     setState(() {});
   }
@@ -155,13 +150,10 @@ class _AutoSuggestBoxState<T> extends State<AutoSuggestBox> {
             child: _AutoSuggestBoxOverlay(
               controller: controller,
               items: widget.items,
-              onSelected: (String item) {
+              onSelected: (item) {
                 widget.onSelected?.call(item);
-                controller.text = item;
-                controller.selection = TextSelection.collapsed(
-                  offset: item.length,
-                );
-                widget.onChanged?.call(item, TextChangedReason.userInput);
+                controller.text = item.toString();
+                widget.onChanged?.call(item.toString(), TextChangedReason.userInput);
               },
             ),
           ),
@@ -182,12 +174,6 @@ class _AutoSuggestBoxState<T> extends State<AutoSuggestBox> {
     _entry = null;
   }
 
-  void _showOverlay() {
-    if (_entry == null && !(_entry?.mounted ?? false)) {
-      _insertOverlay();
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     assert(debugCheckHasFluentTheme(context));
@@ -199,19 +185,33 @@ class _AutoSuggestBoxState<T> extends State<AutoSuggestBox> {
         key: _textBoxKey,
         controller: controller,
         focusNode: focusNode,
+        // onFocusChange: (focused) {
+        //   debugPrint('Focused!');
+        // },
         placeholder: widget.placeholder,
-        placeholderStyle: widget.placeholderStyle,
         clipBehavior: _entry != null ? Clip.none : Clip.antiAliasWithSaveLayer,
         suffix: Row(children: [
           if (widget.trailingIcon != null) widget.trailingIcon!,
+          if (widget.addButtonEnabled && controller.text.isNotEmpty && (widget.onAdd != null))
+            Padding(
+              padding: const EdgeInsets.only(left: 2.0),
+              child: IconButton(
+                icon: const Icon(FluentIcons.add, color: Colors.grey,),
+                onPressed: () {
+                  if (widget.onAdd != null) {
+                    widget.onAdd!(controller.text);
+                  }
+                },
+              ),
+            ),
           if (widget.clearButtonEnabled && controller.text.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(left: 2.0),
               child: IconButton(
-                icon: const Icon(FluentIcons.chrome_close),
+                icon: const Icon(FluentIcons.clear, color: Colors.grey,),
                 onPressed: () {
                   controller.clear();
-                  focusNode.unfocus();
+                  focusNode.requestFocus();
                 },
               ),
             ),
@@ -219,7 +219,9 @@ class _AutoSuggestBoxState<T> extends State<AutoSuggestBox> {
         suffixMode: OverlayVisibilityMode.always,
         onChanged: (text) {
           widget.onChanged?.call(text, TextChangedReason.userInput);
-          _showOverlay();
+          if (_entry == null && !(_entry?.mounted ?? false)) {
+            _insertOverlay();
+          }
         },
       ),
     );
@@ -236,7 +238,7 @@ class _AutoSuggestBoxOverlay extends StatelessWidget {
 
   final List items;
   final TextEditingController controller;
-  final ValueChanged<String> onSelected;
+  final ValueChanged onSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -264,7 +266,7 @@ class _AutoSuggestBoxOverlay extends StatelessWidget {
           valueListenable: controller,
           builder: (context, value, _) {
             final items =
-                AutoSuggestBox.defaultItemSorter(value.text, this.items);
+            AutoSuggestBox.defaultItemSorter(value.text, this.items);
             late Widget result;
             if (items.isEmpty) {
               result = Padding(
